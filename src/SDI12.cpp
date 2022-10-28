@@ -50,6 +50,11 @@
 
 #include "SDI12.h"  //  Header file for this library
 
+#define SDI12_DIR_WRITE(dirPin) \
+  if (dirPin >= 0) digitalWrite(dirPin, 1)
+#define SDI12_DIR_READ(dirPin) \
+  if (dirPin >= 0) digitalWrite(dirPin, 0)
+
 /* ================  Set static constants ===========================================*/
 
 // Pointer to active SDI12 object
@@ -222,8 +227,9 @@ SDI12::SDI12() {
   setTimeoutValue(-9999);
 }
 
-SDI12::SDI12(int8_t dataPin) {
+SDI12::SDI12(int8_t dataPin, int8_t dirPin) {
   setDataPin(dataPin);
+  setDirPin(dirPin);
   // SDI-12 protocol says sensors must respond within 15 milliseconds
   // We'll bump that up to 150, just for good measure, but we don't want to
   // wait the whole stream default of 1s for a response.
@@ -254,8 +260,9 @@ void SDI12::begin() {
   sdi12timer.configSDI12TimerPrescale();
 }
 
-void SDI12::begin(int8_t dataPin) {
+void SDI12::begin(int8_t dataPin, int8_t dirPin) {
   setDataPin(dataPin);
+  setDirPin(dirPin);
   begin();
 }
 
@@ -281,6 +288,18 @@ void SDI12::setDataPin(int8_t dataPin) {
 // Return the data pin for the SDI-12 instance
 int8_t SDI12::getDataPin() {
   return _dataPin;
+}
+
+int8_t SDI12::getDirPin() {
+  return _dirPin;
+}
+
+void SDI12::setDirPin(int8_t dirPin) {
+  _dirPin = dirPin;
+  if (dirPin >= 0) {
+    pinMode(dirPin, OUTPUT);
+    SDI12_DIR_READ(dirPin);
+  }
 }
 
 /* ================ Using more than one SDI-12 object ===============================*/
@@ -356,34 +375,41 @@ void SDI12::setPinInterrupts(bool enable) {
 // sets the state of the SDI-12 object.
 void SDI12::setState(SDI12_STATES state) {
   switch (state) {
-    case SDI12_HOLDING: {
-      pinMode(_dataPin, INPUT);     // Turn off the pull-up resistor
-      pinMode(_dataPin, OUTPUT);    // Pin mode = output
-      digitalWrite(_dataPin, LOW);  // Pin state = low - marking
-      setPinInterrupts(false);      // Interrupts disabled on data pin
-      break;
-    }
-    case SDI12_TRANSMITTING: {
-      pinMode(_dataPin, INPUT);   // Turn off the pull-up resistor
-      pinMode(_dataPin, OUTPUT);  // Pin mode = output
-      setPinInterrupts(false);    // Interrupts disabled on data pin
-      break;
-    }
-    case SDI12_LISTENING: {
-      digitalWrite(_dataPin, LOW);  // Pin state = low (turns off pull-up)
-      pinMode(_dataPin, INPUT);     // Pin mode = input, pull-up resistor off
-      interrupts();                 // Enable general interrupts
-      setPinInterrupts(true);       // Enable Rx interrupts on data pin
-      rxState = WAITING_FOR_START_BIT;
-      break;
-    }
+    case SDI12_HOLDING:
+      {
+        pinMode(_dataPin, INPUT);     // Turn off the pull-up resistor
+        pinMode(_dataPin, OUTPUT);    // Pin mode = output
+        digitalWrite(_dataPin, LOW);  // Pin state = low - marking
+        SDI12_DIR_WRITE(_dirPin);
+        setPinInterrupts(false);  // Interrupts disabled on data pin
+        break;
+      }
+    case SDI12_TRANSMITTING:
+      {
+        pinMode(_dataPin, INPUT);   // Turn off the pull-up resistor
+        pinMode(_dataPin, OUTPUT);  // Pin mode = output
+        SDI12_DIR_WRITE(_dirPin);
+        setPinInterrupts(false);    // Interrupts disabled on data pin
+        break;
+      }
+    case SDI12_LISTENING:
+      {
+        digitalWrite(_dataPin, LOW);  // Pin state = low (turns off pull-up)
+        pinMode(_dataPin, INPUT);     // Pin mode = input, pull-up resistor off
+        SDI12_DIR_READ(_dirPin);
+        interrupts();                 // Enable general interrupts
+        setPinInterrupts(true);       // Enable Rx interrupts on data pin
+        rxState = WAITING_FOR_START_BIT;
+        break;
+      }
     default:  // SDI12_DISABLED or SDI12_ENABLED
-    {
-      digitalWrite(_dataPin, LOW);  // Pin state = low (turns off pull-up)
-      pinMode(_dataPin, INPUT);     // Pin mode = input, pull-up resistor off
-      setPinInterrupts(false);      // Interrupts disabled on data pin
-      break;
-    }
+      {
+        digitalWrite(_dataPin, LOW);  // Pin state = low (turns off pull-up)
+        pinMode(_dataPin, INPUT);     // Pin mode = input, pull-up resistor off
+        SDI12_DIR_READ(_dirPin);
+        setPinInterrupts(false);      // Interrupts disabled on data pin
+        break;
+      }
   }
 }
 
@@ -541,7 +567,6 @@ void SDI12::sendResponse(FlashString resp) {
   }
   setState(SDI12_LISTENING);  // return to listening state
 }
-
 
 /* ================ Interrupt Service Routine =======================================*/
 
