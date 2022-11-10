@@ -276,6 +276,10 @@ class SDI12 : public Stream {
   static uint8_t rxValue;
 
   /**
+   * @brief Interrupt attached state
+   */
+  static uint8_t attached;
+  /**
    * @brief static method for getting a 16-bit value from the multiplication of 2 8-bit
    * values
    *
